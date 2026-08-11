@@ -1,4 +1,4 @@
-INSERT INTO favicons_excluded_domains (domain) VALUES
+INSERT INTO atomic_crm.favicons_excluded_domains (domain) VALUES
     ('gmail.com'),
     ('yahoo.com'),
     ('hotmail.com'),
