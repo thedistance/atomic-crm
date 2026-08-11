@@ -91,7 +91,7 @@ CREATE OR REPLACE FUNCTION "public"."get_domain_favicon"("domain_name" "text") R
 declare domain_status int8;
 
 begin
-    if exists (select from favicons_excluded_domains as fav where fav.domain = domain_name) then
+    if exists (select from atomic_crm.favicons_excluded_domains as fav where fav.domain = domain_name) then
         return null;
     end if;
 
@@ -185,7 +185,7 @@ CREATE OR REPLACE FUNCTION "public"."handle_contact_note_created_or_updated"() R
     SET "search_path" TO ''
     AS $$
 begin
-  update public.contacts set last_seen = new.date where contacts.id = new.contact_id and contacts.last_seen < new.date;
+  update atomic_crm.contacts set last_seen = new.date where contacts.id = new.contact_id and contacts.last_seen < new.date;
   return new;
 end;
 $$;
@@ -232,9 +232,9 @@ declare
   sales_count int;
 begin
   select count(id) into sales_count
-  from public.sales;
+  from atomic_crm.sales;
 
-  insert into public.sales (first_name, last_name, email, user_id, administrator)
+  insert into atomic_crm.sales (first_name, last_name, email, user_id, administrator)
   values (
     coalesce(new.raw_user_meta_data ->> 'first_name', new.raw_user_meta_data -> 'custom_claims' ->> 'first_name', 'Pending'),
     coalesce(new.raw_user_meta_data ->> 'last_name', new.raw_user_meta_data -> 'custom_claims' ->> 'last_name', 'Pending'),
@@ -251,7 +251,7 @@ CREATE OR REPLACE FUNCTION "public"."handle_update_user"() RETURNS "trigger"
     SET "search_path" TO ''
     AS $$
 begin
-  update public.sales
+  update atomic_crm.sales
   set
     first_name = coalesce(new.raw_user_meta_data ->> 'first_name', new.raw_user_meta_data -> 'custom_claims' ->> 'first_name', 'Pending'),
     last_name = coalesce(new.raw_user_meta_data ->> 'last_name', new.raw_user_meta_data -> 'custom_claims' ->> 'last_name', 'Pending'),
@@ -268,18 +268,18 @@ CREATE OR REPLACE FUNCTION "public"."is_admin"() RETURNS boolean
     AS $$
 begin
   return exists (
-    select 1 from public.sales where user_id = auth.uid() and administrator = true
+    select 1 from atomic_crm.sales where user_id = auth.uid() and administrator = true
   );
 end;
 $$;
 
 CREATE OR REPLACE FUNCTION "public"."merge_contacts"("loser_id" bigint, "winner_id" bigint) RETURNS bigint
     LANGUAGE "plpgsql"
-    SET "search_path" TO 'public'
+    SET "search_path" TO ''
     AS $$
 DECLARE
-  winner_contact contacts%ROWTYPE;
-  loser_contact contacts%ROWTYPE;
+  winner_contact atomic_crm.contacts%ROWTYPE;
+  loser_contact atomic_crm.contacts%ROWTYPE;
   deal_record RECORD;
   merged_emails jsonb;
   merged_phones jsonb;
@@ -292,26 +292,26 @@ DECLARE
   phone_map jsonb;
 BEGIN
   -- Fetch both contacts
-  SELECT * INTO winner_contact FROM contacts WHERE id = winner_id;
-  SELECT * INTO loser_contact FROM contacts WHERE id = loser_id;
+  SELECT * INTO winner_contact FROM atomic_crm.contacts WHERE id = winner_id;
+  SELECT * INTO loser_contact FROM atomic_crm.contacts WHERE id = loser_id;
 
   IF winner_contact IS NULL OR loser_contact IS NULL THEN
     RAISE EXCEPTION 'Contact not found';
   END IF;
 
   -- 1. Reassign tasks from loser to winner
-  UPDATE tasks SET contact_id = winner_id WHERE contact_id = loser_id;
+  UPDATE atomic_crm.tasks SET contact_id = winner_id WHERE contact_id = loser_id;
 
   -- 2. Reassign contact notes from loser to winner
-  UPDATE contact_notes SET contact_id = winner_id WHERE contact_id = loser_id;
+  UPDATE atomic_crm.contact_notes SET contact_id = winner_id WHERE contact_id = loser_id;
 
   -- 3. Update deals - replace loser with winner in contact_ids array
   FOR deal_record IN
     SELECT id, contact_ids
-    FROM deals
+    FROM atomic_crm.deals
     WHERE contact_ids @> ARRAY[loser_id]
   LOOP
-    UPDATE deals
+    UPDATE atomic_crm.deals
     SET contact_ids = (
       SELECT ARRAY(
         SELECT DISTINCT unnest(
@@ -400,7 +400,7 @@ BEGIN
   );
 
   -- 5. Update winner with merged data
-  UPDATE contacts SET
+  UPDATE atomic_crm.contacts SET
     avatar = COALESCE(winner_contact.avatar, loser_contact.avatar),
     gender = COALESCE(winner_contact.gender, loser_contact.gender),
     first_name = COALESCE(winner_contact.first_name, loser_contact.first_name),
@@ -419,7 +419,7 @@ BEGIN
   WHERE id = winner_id;
 
   -- 6. Delete loser contact
-  DELETE FROM contacts WHERE id = loser_id;
+  DELETE FROM atomic_crm.contacts WHERE id = loser_id;
 
   RETURN winner_id;
 END;
@@ -448,7 +448,7 @@ CREATE OR REPLACE FUNCTION "public"."set_sales_id_default"() RETURNS "trigger"
     AS $$
 BEGIN
   IF NEW.sales_id IS NULL THEN
-    SELECT id INTO NEW.sales_id FROM sales WHERE user_id = auth.uid();
+    SELECT id INTO NEW.sales_id FROM atomic_crm.sales WHERE user_id = auth.uid();
   END IF;
   RETURN NEW;
 END;

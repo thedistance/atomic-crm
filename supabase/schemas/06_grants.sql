@@ -1,6 +1,7 @@
 --
 -- Grants
--- This file declares all grants and default privileges for the public schema.
+-- This file declares all grants and default privileges.
+-- Tables live in atomic_crm; public exposes views only.
 --
 
 -- Schema usage
@@ -8,6 +9,10 @@ grant usage on schema public to postgres;
 grant usage on schema public to anon;
 grant usage on schema public to authenticated;
 grant usage on schema public to service_role;
+
+grant usage on schema atomic_crm to postgres;
+grant usage on schema atomic_crm to authenticated;
+grant usage on schema atomic_crm to service_role;
 
 -- Function grants
 grant all on function public.cleanup_note_attachments() to anon;
@@ -65,7 +70,38 @@ grant all on function public.set_sales_id_default() to anon;
 grant all on function public.set_sales_id_default() to authenticated;
 grant all on function public.set_sales_id_default() to service_role;
 
--- Table grants
+-- Base table grants (atomic_crm) — needed for security_invoker views
+grant all on table atomic_crm.companies to authenticated;
+grant all on table atomic_crm.companies to service_role;
+
+grant all on table atomic_crm.contacts to authenticated;
+grant all on table atomic_crm.contacts to service_role;
+
+grant all on table atomic_crm.contact_notes to authenticated;
+grant all on table atomic_crm.contact_notes to service_role;
+
+grant all on table atomic_crm.deals to authenticated;
+grant all on table atomic_crm.deals to service_role;
+
+grant all on table atomic_crm.deal_notes to authenticated;
+grant all on table atomic_crm.deal_notes to service_role;
+
+grant all on table atomic_crm.sales to authenticated;
+grant all on table atomic_crm.sales to service_role;
+
+grant all on table atomic_crm.tags to authenticated;
+grant all on table atomic_crm.tags to service_role;
+
+grant all on table atomic_crm.tasks to authenticated;
+grant all on table atomic_crm.tasks to service_role;
+
+grant all on table atomic_crm.configuration to authenticated;
+grant all on table atomic_crm.configuration to service_role;
+
+grant all on table atomic_crm.favicons_excluded_domains to authenticated;
+grant all on table atomic_crm.favicons_excluded_domains to service_role;
+
+-- Public pass-through + derived view grants (mirror former table grants)
 grant all on table public.companies to anon;
 grant all on table public.companies to authenticated;
 grant all on table public.companies to service_role;
@@ -106,7 +142,6 @@ grant all on table public.favicons_excluded_domains to anon;
 grant all on table public.favicons_excluded_domains to authenticated;
 grant all on table public.favicons_excluded_domains to service_role;
 
--- View grants
 grant all on table public.activity_log to anon;
 grant all on table public.activity_log to authenticated;
 grant all on table public.activity_log to service_role;
@@ -128,42 +163,33 @@ grant select on table public.configuration_branding to anon;
 grant select on table public.configuration_branding to authenticated;
 grant select on table public.configuration_branding to service_role;
 
--- Sequence grants
-grant all on sequence public.companies_id_seq to anon;
-grant all on sequence public.companies_id_seq to authenticated;
-grant all on sequence public.companies_id_seq to service_role;
+-- Sequence grants (moved with tables into atomic_crm)
+grant all on sequence atomic_crm.companies_id_seq to authenticated;
+grant all on sequence atomic_crm.companies_id_seq to service_role;
 
-grant all on sequence public."contactNotes_id_seq" to anon;
-grant all on sequence public."contactNotes_id_seq" to authenticated;
-grant all on sequence public."contactNotes_id_seq" to service_role;
+grant all on sequence atomic_crm."contactNotes_id_seq" to authenticated;
+grant all on sequence atomic_crm."contactNotes_id_seq" to service_role;
 
-grant all on sequence public.contacts_id_seq to anon;
-grant all on sequence public.contacts_id_seq to authenticated;
-grant all on sequence public.contacts_id_seq to service_role;
+grant all on sequence atomic_crm.contacts_id_seq to authenticated;
+grant all on sequence atomic_crm.contacts_id_seq to service_role;
 
-grant all on sequence public."dealNotes_id_seq" to anon;
-grant all on sequence public."dealNotes_id_seq" to authenticated;
-grant all on sequence public."dealNotes_id_seq" to service_role;
+grant all on sequence atomic_crm."dealNotes_id_seq" to authenticated;
+grant all on sequence atomic_crm."dealNotes_id_seq" to service_role;
 
-grant all on sequence public.deals_id_seq to anon;
-grant all on sequence public.deals_id_seq to authenticated;
-grant all on sequence public.deals_id_seq to service_role;
+grant all on sequence atomic_crm.deals_id_seq to authenticated;
+grant all on sequence atomic_crm.deals_id_seq to service_role;
 
-grant all on sequence public.favicons_excluded_domains_id_seq to anon;
-grant all on sequence public.favicons_excluded_domains_id_seq to authenticated;
-grant all on sequence public.favicons_excluded_domains_id_seq to service_role;
+grant all on sequence atomic_crm.favicons_excluded_domains_id_seq to authenticated;
+grant all on sequence atomic_crm.favicons_excluded_domains_id_seq to service_role;
 
-grant all on sequence public.sales_id_seq to anon;
-grant all on sequence public.sales_id_seq to authenticated;
-grant all on sequence public.sales_id_seq to service_role;
+grant all on sequence atomic_crm.sales_id_seq to authenticated;
+grant all on sequence atomic_crm.sales_id_seq to service_role;
 
-grant all on sequence public.tags_id_seq to anon;
-grant all on sequence public.tags_id_seq to authenticated;
-grant all on sequence public.tags_id_seq to service_role;
+grant all on sequence atomic_crm.tags_id_seq to authenticated;
+grant all on sequence atomic_crm.tags_id_seq to service_role;
 
-grant all on sequence public.tasks_id_seq to anon;
-grant all on sequence public.tasks_id_seq to authenticated;
-grant all on sequence public.tasks_id_seq to service_role;
+grant all on sequence atomic_crm.tasks_id_seq to authenticated;
+grant all on sequence atomic_crm.tasks_id_seq to service_role;
 
 -- Default privileges
 alter default privileges for role postgres in schema public grant all on sequences to postgres;
@@ -180,3 +206,11 @@ alter default privileges for role postgres in schema public grant all on tables 
 alter default privileges for role postgres in schema public grant all on tables to anon;
 alter default privileges for role postgres in schema public grant all on tables to authenticated;
 alter default privileges for role postgres in schema public grant all on tables to service_role;
+
+alter default privileges for role postgres in schema atomic_crm grant all on sequences to postgres;
+alter default privileges for role postgres in schema atomic_crm grant all on sequences to authenticated;
+alter default privileges for role postgres in schema atomic_crm grant all on sequences to service_role;
+
+alter default privileges for role postgres in schema atomic_crm grant all on tables to postgres;
+alter default privileges for role postgres in schema atomic_crm grant all on tables to authenticated;
+alter default privileges for role postgres in schema atomic_crm grant all on tables to service_role;
