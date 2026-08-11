@@ -45,10 +45,10 @@ This will install the dependencies for the frontend and the backend, including a
 Once your app is configured, start the app locally with the following command:
 
 ```sh
-make start
+make start-supabase-functions
 ```
 
-This will start the Vite dev server for the frontend, the local Supabase instance for the API, and a Postgres database (thanks to Docker).
+This will start the Vite dev server for the frontend, the local Supabase instance for the API, and a Postgres database (thanks to Docker) and server the Edge Functions.
 
 You can then access the app via [http://localhost:5173/](http://localhost:5173/). You will be prompted to create the first user.
 
