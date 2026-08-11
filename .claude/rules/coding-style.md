@@ -25,6 +25,11 @@ abstractions when repetition is real, not speculative.
 YAGNI — do not build features before they are needed. Start simple,
 refactor when the pressure is real.
 
+Scope discipline: implement exactly what the task asks, no more. An
+adjacent problem you notice (a nearby bug, a tempting refactor, missing
+tests elsewhere) is REPORTED, never fixed in the same change. Never expand
+scope silently.
+
 ## File organization
 
 Many small files over few large files:
@@ -32,6 +37,9 @@ Many small files over few large files:
 - High cohesion, low coupling
 - Organize by feature/domain, not by type
 - Extract utilities from large modules
+- Grow the file *count*, not the file: when an edit would push a file past
+  the ~400-line typical ceiling, extract a new focused module instead of
+  appending to the existing one
 
 ## Error handling
 

@@ -1,10 +1,11 @@
 {
+  "extraKnownMarketplaces": {},
   "enabledPlugins": {
     "context7@claude-plugins-official": false,
     "playwright@claude-plugins-official": false,
     "security-guidance@claude-plugins-official": false,
     "supabase@claude-plugins-official": false,
-    "typescript-lsp@claude-plugins-official": false,
+    "typescript-lsp@claude-plugins-official": true,
     "code-review@claude-plugins-official": false,
     "commit-commands@claude-plugins-official": false,
     "frontend-design@claude-plugins-official": false,
@@ -12,34 +13,85 @@
     "hookify@claude-plugins-official": false,
     "ralph-loop@claude-plugins-official": false
   },
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-  },
   "skillListingMaxDescChars": 512,
+  "env": {
+    "ENABLE_LSP_TOOL": "1",
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "3"
+  },
   "permissions": {
-    "allow": []
+    "allow": [],
+    "deny": [
+      "Bash(npm install *)",
+      "Bash(npm i *)",
+      "Bash(pnpm add *)",
+      "Bash(yarn add *)",
+      "mcp__github__merge_pull_request",
+      "mcp__github__create_or_update_file",
+      "mcp__github__push_files",
+      "mcp__github__delete_file",
+      "mcp__github__create_repository",
+      "mcp__github__fork_repository",
+      "mcp__plugin_github_github__merge_pull_request",
+      "mcp__plugin_github_github__create_or_update_file",
+      "mcp__plugin_github_github__push_files",
+      "mcp__plugin_github_github__delete_file",
+      "mcp__plugin_github_github__create_repository",
+      "mcp__plugin_github_github__fork_repository"
+    ]
   },
   "attribution": {
     "commit": "",
     "pr": ""
   },
   "hooks": {
-    "PreToolUse": [
+    "SessionStart": [
       {
-        "matcher": "Bash|Read|Grep|Glob|SendMessage",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/member-idle-gate.mjs"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-bootstrap.mjs",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/ensure-playwright-mcp.mjs",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/link-session-workspace.mjs",
+            "timeout": 10
           }
         ]
-      },
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/cleanup-session.mjs",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/silent-mode-check.mjs"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/bash-guard.mjs"
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-pr-checks.mjs",
+            "timeout": 150
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-docker-containers.mjs"
           },
           {
             "type": "command",
@@ -47,15 +99,11 @@
           },
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-bash-file-write.mjs"
-          },
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-bash-validation.mjs"
-          },
-          {
-            "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-orchestrator-merge.mjs"
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-wave-merger-promote.mjs"
           },
           {
             "type": "command",
@@ -77,63 +125,79 @@
         ]
       },
       {
-        "matcher": "SendMessage",
+        "matcher": "Agent",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-premature-shutdowns.mjs"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-nested-orchestrator.mjs"
           },
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/validate-before-review.mjs",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-duplicate-dispatch.mjs"
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-merger-without-review.mjs"
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-promote-unmerged.mjs"
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/record-merger-stage.mjs"
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-dev-dispatch.mjs"
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/force-foreground-orchestrator-dispatch.mjs"
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/setup-worktree.mjs",
             "timeout": 180,
-            "statusMessage": "Validating before review/merge..."
-          }
-        ]
-      },
-      {
-        "matcher": "TeamDelete",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/teamdelete-gate.mjs",
-            "timeout": 5,
-            "statusMessage": "Checking team teardown state..."
-          }
-        ]
-      },
-      {
-        "matcher": "TeamCreate",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/teamcreate-wipe-orphan.mjs",
-            "timeout": 5
+            "statusMessage": "Setting up worktree..."
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "TeamDelete",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/teamdelete-cleanup.mjs",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/format-on-write.mjs",
+            "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/check-typescript-shortcuts.mjs"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/reinject-invariants.mjs",
             "timeout": 5
           }
         ]
       }
     ],
-    "SubagentStart": [
+    "Stop": [
       {
-        "matcher": "simple-developer|developer",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/setup-worktree.mjs",
-            "timeout": 60,
-            "statusMessage": "Setting up worktree..."
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/turn-complete.mjs",
+            "timeout": 5
           }
         ]
       }
@@ -151,40 +215,53 @@
         ]
       },
       {
-        "matcher": "simple-developer",
+        "matcher": "quality-reviewer",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/typecheck-on-commit.mjs",
-            "timeout": 120,
-            "statusMessage": "Validating typecheck..."
-          },
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/record-review-verdict.mjs",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "developer|test-writer",
+        "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/prettier-on-stop.mjs",
-            "timeout": 60,
-            "statusMessage": "Validating prettier..."
-          },
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/validate-on-stop.mjs",
+            "timeout": 900,
+            "statusMessage": "Running validation (prettier, typecheck, lint, unit, e2e)..."
+          }
+        ]
+      },
+      {
+        "matcher": "orchestrator",
+        "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/run-unit-tests-app.mjs",
-            "timeout": 180,
-            "statusMessage": "Running unit tests (app)..."
-          },
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/completion-invariant.mjs",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "developer|simple-developer|test-writer|quality-reviewer|merger|planner|orchestrator",
+        "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/run-unit-tests-functions.mjs",
-            "timeout": 180,
-            "statusMessage": "Running unit tests (functions)..."
-          },
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/run-e2e-tests.mjs",
-            "timeout": 600,
-            "statusMessage": "Running e2e tests..."
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/render-status.mjs",
+            "timeout": 15
           }
         ]
       }
     ]
+  },
+  "lspServers": {
+    "typescript": {
+      "command": "typescript-language-server",
+      "args": ["--stdio"],
+      "fileTypes": [".ts", ".tsx", ".mjs", ".js", ".jsx"]
+    }
   }
 }

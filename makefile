@@ -14,7 +14,17 @@ help:
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 install: package.json ## install dependencies
-	npm install;
+	npm install
+
+install-playwright-browsers: install ## install the playwright browsers matching the repo's pinned version
+	npx playwright install chromium chromium-headless-shell
+
+install-claude-plugins:
+	claude plugin marketplace update claude-plugins-official
+	claude plugin install typescript-lsp@claude-plugins-official
+
+install-lsp:
+	npm install -g typescript-language-server
 
 start-supabase: ## start supabase locally
 	npx supabase start
@@ -155,3 +165,12 @@ update-changelog: ## Update the changelog with the unreleased changes (ran autom
 
 storybook: ## start storybook
 	npm run storybook
+
+watch: ## live monitor of the most recent agent session (agents, hooks, diagnosis)
+	node scripts/harness-monitor.mjs --watch
+
+monitor: ## one-shot summary of the most recent agent session (pass SESSION=<id> to pick one)
+	@node scripts/harness-monitor.mjs $(if $(SESSION),--session $(SESSION),)
+
+sessions: ## list known agent sessions, newest first
+	@node scripts/harness-monitor.mjs --list

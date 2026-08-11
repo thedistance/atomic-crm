@@ -1,43 +1,62 @@
-// Tests for setup-worktree.mjs session-branch topology (vitest, Node project).
-// Uses a throwaway git repo as the project root via the APP_DIR override, and a
-// throwaway CRM_TMP_ROOT so worktrees land in a predictable, isolated location.
-//
-// The tests are intentionally ordered and stateful: each one observes (or mutates)
-// the worktree state produced by the previous step. Vitest runs tests within a file
-// sequentially in declaration order, which preserves that contract.
+// Tests for setup-worktree.mjs (vitest, "claude" Node project). setup-worktree is
+// now a PreToolUse(Agent) hook: it reads the dispatch tool_input (subagent_type,
+// name, prompt) and creates the worktree BEFORE the subagent starts. Uses a
+// throwaway git repo (APP_DIR) + CRM_TMP_ROOT. Tests are ordered and stateful —
+// each observes the state produced by the previous step.
 
+import { spawnSync } from "node:child_process";
 import {
-  mkdtempSync,
-  mkdirSync,
-  writeFileSync,
-  readFileSync,
   existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
-import { describe, test, expect, beforeAll, afterAll } from "vitest";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { sanitizePath } from "../lib/paths.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HOOK = join(HERE, "..", "setup-worktree.mjs");
 const SESSION_ID = "ab12cd34-1111-2222-3333-444455556666";
-const SS = SESSION_ID.split("-")[0]; // ab12cd34
+const SS = SESSION_ID.split("-")[0];
 
 let TMP;
 let APP_DIR;
-let WB; // WORKTREE_BASE: <CRM_TMP_ROOT>/<APP_DIR with '/'->'_'>/<SESSION_ID>
+let WB;
 let env;
 
 const g = (...args) =>
   spawnSync("git", ["-C", APP_DIR, ...args], { encoding: "utf8" });
-const dispatch = (agentType) =>
-  spawnSync("node", [HOOK], {
-    input: JSON.stringify({ agent_type: agentType, session_id: SESSION_ID }),
+
+// Build a PreToolUse(Agent) dispatch payload and run the hook.
+const dispatch = ({
+  subagentType = "developer",
+  taskId = "",
+  name = "",
+} = {}) => {
+  const wp = taskId ? join(WB, taskId) : join(WB, "simple");
+  const branch = taskId ? `${SS}/${taskId}` : `${SS}/simple`;
+  const prompt =
+    `ROLE: ${subagentType}\n` +
+    (taskId ? `TASK_ID: ${taskId}\n` : "") +
+    `WORKTREE_PATH: ${wp}\nBRANCH_NAME: ${branch}`;
+  return spawnSync("node", [HOOK], {
+    input: JSON.stringify({
+      session_id: SESSION_ID,
+      tool_input: {
+        subagent_type: subagentType,
+        name: name || (taskId ? `${subagentType}-${taskId}` : subagentType),
+        prompt,
+      },
+    }),
     env,
     encoding: "utf8",
   });
+};
 
 beforeAll(() => {
   TMP = mkdtempSync(join(tmpdir(), "setup-wt-test-"));
@@ -51,22 +70,20 @@ beforeAll(() => {
   g("commit", "-q", "-m", "seed");
   mkdirSync(join(APP_DIR, "node_modules"), { recursive: true });
 
-  // Isolated scratch root + full session id supplied on stdin (no chat-service).
   const CRM_TMP_ROOT = join(TMP, "scratch");
-  WB = join(CRM_TMP_ROOT, APP_DIR.replace(/\//g, "_"), SESSION_ID);
+  WB = join(CRM_TMP_ROOT, sanitizePath(APP_DIR), SESSION_ID);
 
   env = { ...process.env, APP_DIR, CRM_TMP_ROOT };
   delete env.VALIDATE_WORKTREE;
 
-  // Dispatch a COMPLEX developer for TASK-001.
-  dispatch("developer-TASK-001");
+  dispatch({ subagentType: "developer", taskId: "TASK-001" });
 });
 
 afterAll(() => {
   rmSync(TMP, { recursive: true, force: true });
 });
 
-describe("setup-worktree session-branch topology", () => {
+describe("setup-worktree session-branch topology (PreToolUse/Agent)", () => {
   test("session branch created", () => {
     expect(
       g("show-ref", "--verify", "--quiet", `refs/heads/session/${SS}`).status,
@@ -88,22 +105,40 @@ describe("setup-worktree session-branch topology", () => {
     expect(existsSync(join(WB, "TASK-001"))).toBe(true);
   });
 
+  test("node_modules provisioned into task worktree", () => {
+    expect(existsSync(join(WB, "TASK-001", "node_modules"))).toBe(true);
+  });
+
   test("task branch forked from session branch", () => {
-    // Task branch must fork from the session branch, not main directly.
     expect(
       g("merge-base", "--is-ancestor", `session/${SS}`, `${SS}/TASK-001`)
         .status,
     ).toBe(0);
   });
 
-  test("idempotent second run exits 0", () => {
-    // Restart scenario: a second dispatch with the same session must be a no-op.
-    expect(dispatch("developer-TASK-001").status).toBe(0);
+  test("non-dev dispatch (reviewer) is a silent no-op", () => {
+    const r = spawnSync("node", [HOOK], {
+      input: JSON.stringify({
+        session_id: SESSION_ID,
+        tool_input: {
+          subagent_type: "quality-reviewer",
+          name: "quality-reviewer-TASK-001",
+          prompt: "ROLE: quality-reviewer\nTASK_ID: TASK-001",
+        },
+      }),
+      env,
+      encoding: "utf8",
+    });
+    expect(r.status).toBe(0);
   });
 
-  // Regression: session restart where cleanup wiped the _session directory but git
-  // still holds the worktree registration. Plain `worktree add` fails with "missing
-  // but already registered"; the hook must prune + recreate.
+  test("idempotent second run exits 0 and keeps the worktree", () => {
+    expect(
+      dispatch({ subagentType: "developer", taskId: "TASK-001" }).status,
+    ).toBe(0);
+    expect(existsSync(join(WB, "TASK-001"))).toBe(true);
+  });
+
   test("stale _session registration survives dir wipe", () => {
     rmSync(join(WB, "_session"), { recursive: true, force: true });
     expect(
@@ -114,8 +149,57 @@ describe("setup-worktree session-branch topology", () => {
   });
 
   test("_session recreated after stale-registration wipe", () => {
-    dispatch("developer-TASK-002");
+    dispatch({ subagentType: "developer", taskId: "TASK-002" });
     expect(existsSync(join(WB, "_session", ".git"))).toBe(true);
+  });
+
+  test("developer on the <short>/simple branch derives the simple worktree", () => {
+    spawnSync("node", [HOOK], {
+      input: JSON.stringify({
+        session_id: SESSION_ID,
+        tool_input: {
+          subagent_type: "developer",
+          name: "developer",
+          prompt: `ROLE: developer\nWORKTREE_PATH: ${join(WB, "simple")}\nBRANCH_NAME: ${SS}/simple`,
+        },
+      }),
+      env,
+      encoding: "utf8",
+    });
+    expect(existsSync(join(WB, "simple"))).toBe(true);
+  });
+
+  test("developer with WORKTREE_PATH but unresolvable task id is blocked (exit 2)", () => {
+    const r = spawnSync("node", [HOOK], {
+      input: JSON.stringify({
+        session_id: SESSION_ID,
+        tool_input: {
+          subagent_type: "developer",
+          name: "developer",
+          prompt:
+            "ROLE: developer\nWORKTREE_PATH: /wt/nowhere\nBRANCH_NAME: x/y",
+        },
+      }),
+      env,
+      encoding: "utf8",
+    });
+    expect(r.status).toBe(2);
+  });
+
+  test("promotion-conflict-resolver is accepted with no worktree (exit 0)", () => {
+    const r = spawnSync("node", [HOOK], {
+      input: JSON.stringify({
+        session_id: SESSION_ID,
+        tool_input: {
+          subagent_type: "developer",
+          name: "developer",
+          prompt: `ROLE: promotion-conflict-resolver (gated $CLAUDE_PROJECT_DIR exception)\nSESSION_SHORT_ID: ${SS}`,
+        },
+      }),
+      env,
+      encoding: "utf8",
+    });
+    expect(r.status).toBe(0);
   });
 
   test("no SESSION-BRANCH FAILED logged", () => {

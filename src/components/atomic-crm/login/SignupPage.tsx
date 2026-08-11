@@ -15,16 +15,13 @@ import { LoginSkeleton } from "./LoginSkeleton";
 import { Notification } from "@/components/admin/notification";
 import { ConfirmationRequired } from "./ConfirmationRequired";
 import { SSOAuthButton } from "./SSOAuthButton";
+import { googleWorkplaceDomain } from "./authConfig";
 
 export const SignupPage = () => {
   usePublicBrandingLoader();
   const queryClient = useQueryClient();
   const dataProvider = useDataProvider<CrmDataProvider>();
-  const {
-    darkModeLogo: logo,
-    title,
-    googleWorkplaceDomain,
-  } = useConfigurationContext();
+  const { darkModeLogo: logo, title } = useConfigurationContext();
   const navigate = useNavigate();
   const translate = useTranslate();
   const { data: isInitialized, isPending } = useQuery({
@@ -107,7 +104,7 @@ export const SignupPage = () => {
           src={logo}
           alt={title}
           width={24}
-          className="filter brightness-0 invert"
+          className="filter brightness-0 dark:invert"
         />
         <h1 className="text-xl font-semibold">{title}</h1>
       </div>
